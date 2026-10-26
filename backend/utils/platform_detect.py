@@ -4,8 +4,10 @@ Platform detection for backend selection.
 
 import os
 import platform
+import re
 import subprocess
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 
@@ -68,6 +70,97 @@ def is_amd_gpu_windows() -> bool:
         pass
 
     return False
+
+
+_INTEL_PCI_VENDOR = "0x8086"
+XPU_INDEX_URL = "https://download.pytorch.org/whl/xpu"
+
+
+def _linux_intel_gpu_names(drm_root: Path = Path("/sys/class/drm")) -> tuple[str, ...]:
+    """Intel GPUs on Linux, found via the kernel's DRM sysfs entries.
+
+    Works without any GPU userspace installed, so it can run before XPU torch
+    is present. Names come from lspci when available, else a generic label.
+    """
+    found = 0
+    try:
+        for vendor_file in sorted(drm_root.glob("card[0-9]*/device/vendor")):
+            if vendor_file.read_text().strip().lower() == _INTEL_PCI_VENDOR:
+                found += 1
+    except OSError:
+        return ()
+    if not found:
+        return ()
+
+    names: list[str] = []
+    try:
+        out = subprocess.run(["lspci", "-mm"], capture_output=True, text=True, timeout=5).stdout
+        for line in out.splitlines():
+            if re.search(r'"(VGA compatible controller|Display controller|3D controller)"', line) and "Intel" in line:
+                parts = re.findall(r'"([^"]*)"', line)
+                if len(parts) >= 3:
+                    names.append(parts[2])
+    except Exception:
+        pass
+    return tuple(names) if names else tuple("Intel GPU" for _ in range(found))
+
+
+def _windows_intel_gpu_names() -> tuple[str, ...]:
+    """Intel GPUs on Windows, via the same WMI query the setup recipe uses."""
+    try:
+        out = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout
+    except Exception:
+        return ()
+    return tuple(n.strip() for n in out.splitlines() if "Intel" in n)
+
+
+@lru_cache(maxsize=1)
+def intel_gpu_names() -> tuple[str, ...]:
+    """Names of Intel GPUs on this host (empty tuple if none, or on macOS).
+
+    Cached: it shells out and the hardware does not change at runtime.
+    """
+    system = platform.system()
+    if system == "Linux":
+        return _linux_intel_gpu_names()
+    if system == "Windows":
+        return _windows_intel_gpu_names()
+    return ()
+
+
+def intel_gpu_warning() -> str | None:
+    """Explain why an installed Intel GPU is not being used, per OS.
+
+    Call only when no GPU backend (CUDA/XPU/DirectML) is active. Returns None
+    when there is no Intel GPU to talk about.
+    """
+    names = intel_gpu_names()
+    if not names:
+        return None
+    gpu = names[0]
+    install = f"pip install torch torchaudio --index-url {XPU_INDEX_URL}"
+    if platform.system() == "Linux":
+        return (
+            f"Intel GPU detected ({gpu}) but this PyTorch build has no XPU support, "
+            f"so generation runs on CPU. Install the XPU build: {install}. "
+            "You also need the Intel compute runtime and Level Zero loader from your "
+            "distro, and your user in the 'render' group."
+        )
+    return (
+        f"Intel GPU detected ({gpu}) but this PyTorch build has no XPU support, "
+        f"so generation runs on CPU. For Arc GPUs install the XPU build: {install}. "
+        "For Iris/UHD integrated graphics see backend/requirements-directml.txt."
+    )
 
 
 # Platform tokens for which we actually build and publish downloadable GPU

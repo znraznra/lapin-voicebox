@@ -67,9 +67,11 @@ The server detects the best inference backend at startup:
 | macOS (Apple Silicon) | MLX | Metal / Neural Engine |
 | Windows / Linux (NVIDIA) | PyTorch | CUDA |
 | Linux (AMD) | PyTorch | ROCm |
-| Intel Arc | PyTorch | IPEX / XPU |
-| Windows (any GPU) | PyTorch | DirectML |
+| Windows / Linux (Intel Arc, Core Ultra) | PyTorch | XPU (native, PyTorch 2.9+; IPEX optional) |
+| Windows (Intel Iris/UHD, other GPUs) | PyTorch | DirectML (optional, see `requirements-directml.txt`) |
 | Any | PyTorch | CPU fallback |
+
+`just setup` picks the PyTorch build for the OS it runs on: CUDA for NVIDIA, ROCm for AMD on Linux, and the XPU build (`https://download.pytorch.org/whl/xpu`) for Intel GPUs on both Linux and Windows. On Linux, XPU also needs your distro's Intel compute runtime and Level Zero loader, and your user in the `render` group. If an Intel GPU is present but PyTorch can't use it, `/health` returns a `gpu_compatibility_warning` with the fix for that OS.
 
 Detection is handled by `utils/platform_detect.py`. Both backends implement the same `TTSBackend` protocol, so the API layer is engine-agnostic.
 

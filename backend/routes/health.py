@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from .. import config, models
 from ..services import tts
 from ..database import get_db
-from ..utils.platform_detect import get_backend_type, is_amd_rocm_capable
+from ..utils.platform_detect import get_backend_type, intel_gpu_warning, is_amd_rocm_capable
 
 router = APIRouter()
 
@@ -100,6 +100,11 @@ async def health():
         _compatible, gpu_compat_warning = check_cuda_compatibility()
 
     gpu_available = has_cuda or has_mps or has_xpu or has_directml or backend_type == "mlx"
+
+    # An Intel GPU is present but nothing can drive it (e.g. plain PyPI torch on
+    # Linux): say so instead of silently reporting CPU with no explanation.
+    if gpu_compat_warning is None and not gpu_available:
+        gpu_compat_warning = intel_gpu_warning()
 
     gpu_type = None
     if has_cuda:

@@ -97,6 +97,16 @@ setup-python:
     fi
     echo "Installing Python dependencies..."
     "{{ python }}" -m pip install --upgrade pip -q
+    # True if any DRM device is an Intel GPU (PCI vendor 0x8086).
+    has_intel_gpu() {
+        for v in /sys/class/drm/card*/device/vendor; do
+            if [ -e "$v" ] && [ "$(cat "$v" 2>/dev/null)" = "0x8086" ]; then
+                return 0
+            fi
+        done
+        return 1
+    }
+    intel_xpu=0
     if [ "$(uname)" = "Linux" ]; then
         torch_index=""
         if [ -e /proc/driver/nvidia/version ] || [ -d /sys/module/nvidia ]; then
@@ -112,6 +122,12 @@ setup-python:
             fi
             echo "Detected AMD GPU — installing ROCm PyTorch (rocm${rocm_ver})..."
             torch_index="https://download.pytorch.org/whl/rocm${rocm_ver}"
+        elif has_intel_gpu; then
+            # Intel Arc / Core Ultra / Iris: native XPU build (PyTorch 2.9+, no IPEX needed).
+            # Runtime needs the distro's Intel compute runtime + Level Zero loader.
+            echo "Detected Intel GPU — installing XPU PyTorch..."
+            torch_index="https://download.pytorch.org/whl/xpu"
+            intel_xpu=1
         fi
         if [ -n "$torch_index" ]; then
             "{{ python }}" -m pip install torch torchaudio --index-url "$torch_index"
@@ -138,6 +154,16 @@ setup-python:
     fi
     "{{ python }}" -m pip install git+https://github.com/QwenLM/Qwen3-TTS.git
     "{{ python }}" -m pip install pyinstaller ruff pytest pytest-asyncio openai -q
+    if [ "$intel_xpu" = "1" ]; then
+        if "{{ python }}" -c "import sys, torch; sys.exit(0 if torch.xpu.is_available() else 1)" 2>/dev/null; then
+            echo "Intel XPU is available to PyTorch."
+        else
+            echo "WARNING: XPU PyTorch is installed but no XPU device is visible."
+            echo "  Install your distro's Intel compute runtime and Level Zero loader,"
+            echo "  and make sure your user is in the 'render' group, then re-check with:"
+            echo "  {{ python }} -c 'import torch; print(torch.xpu.is_available())'"
+        fi
+    fi
     echo "Python environment ready."
 
 [windows]
@@ -200,12 +226,11 @@ setup-python:
     } elseif ($hasIntelArc) { \
         Write-Host "Intel Arc GPU detected — installing PyTorch with XPU support..."; \
         Invoke-Pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu; \
-        Invoke-Pip install intel-extension-for-pytorch --index-url https://download.pytorch.org/whl/xpu; \
     } else { \
         Write-Host "No NVIDIA or Intel Arc GPU detected — using CPU-only PyTorch."; \
         Write-Host "If you have an Intel Arc GPU, install XPU support manually:"; \
         Write-Host "  python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu"; \
-        Write-Host "  python -m pip install intel-extension-for-pytorch --index-url https://download.pytorch.org/whl/xpu"; \
+        Write-Host "For Intel Iris/UHD integrated graphics see backend/requirements-directml.txt."; \
     }; \
     Invoke-Pip install -r {{ backend_dir }}/requirements.txt; \
     Invoke-Pip install --no-deps chatterbox-tts; \
