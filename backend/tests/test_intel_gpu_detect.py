@@ -60,4 +60,21 @@ def test_warning_differs_per_os():
         with patch.object(pd.platform, "system", return_value="Windows"):
             windows = pd.intel_gpu_warning()
     assert pd.XPU_INDEX_URL in linux and "Level Zero" in linux
-    assert pd.XPU_INDEX_URL in windows and "requirements-directml.txt" in windows
+    assert pd.XPU_INDEX_URL in windows and "Level Zero" not in windows
+
+
+def test_iris_xe_is_not_sent_to_xpu():
+    for name in ("Alder Lake-UP3 GT2 [Iris Xe Graphics]", "Intel(R) UHD Graphics 630", "Intel GPU"):
+        assert not pd.is_xpu_supported_gpu(name)
+
+
+def test_arc_and_core_ultra_are_xpu_supported():
+    for name in ("Battlemage G21 [Arc B580 Graphics]", "Meteor Lake-P [Intel Arc Graphics]", "Intel(R) Arc(TM) 140V GPU"):
+        assert pd.is_xpu_supported_gpu(name)
+
+
+def test_warning_for_iris_does_not_suggest_xpu_install():
+    with patch.object(pd, "intel_gpu_names", return_value=("Alder Lake-UP3 GT2 [Iris Xe Graphics]",)):
+        with patch.object(pd.platform, "system", return_value="Linux"):
+            msg = pd.intel_gpu_warning()
+    assert "CPU" in msg and pd.XPU_INDEX_URL not in msg

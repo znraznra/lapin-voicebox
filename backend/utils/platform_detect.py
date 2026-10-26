@@ -138,6 +138,17 @@ def intel_gpu_names() -> tuple[str, ...]:
     return ()
 
 
+# PyTorch's XPU build officially targets Arc (A/B series), Core Ultra "Arc
+# Graphics" iGPUs (Meteor Lake and later) and Data Center GPU Max. Iris Xe / UHD
+# (Gen12 and older) are not listed, so they should not be sent down the XPU path.
+_XPU_SUPPORTED = re.compile(r"\barc\b|battlemage|alchemist|data center gpu max|ponte vecchio", re.I)
+
+
+def is_xpu_supported_gpu(name: str) -> bool:
+    """Whether PyTorch's XPU build officially supports this Intel GPU name."""
+    return bool(_XPU_SUPPORTED.search(name))
+
+
 def intel_gpu_warning() -> str | None:
     """Explain why an installed Intel GPU is not being used, per OS.
 
@@ -149,17 +160,28 @@ def intel_gpu_warning() -> str | None:
         return None
     gpu = names[0]
     install = f"pip install torch torchaudio --index-url {XPU_INDEX_URL}"
-    if platform.system() == "Linux":
+    on_linux = platform.system() == "Linux"
+
+    if not any(is_xpu_supported_gpu(n) for n in names):
+        # Iris Xe / UHD: installing the XPU build would not help.
+        msg = (
+            f"Intel GPU detected ({gpu}) but PyTorch's XPU build does not officially "
+            "support Iris Xe / UHD integrated graphics, so generation runs on CPU."
+        )
+        if not on_linux:
+            msg += " An experimental DirectML option is described in backend/requirements-directml.txt."
+        return msg
+
+    if on_linux:
         return (
-            f"Intel GPU detected ({gpu}) but this PyTorch build has no XPU support, "
+            f"Intel GPU detected ({gpu}) but this PyTorch build cannot use it, "
             f"so generation runs on CPU. Install the XPU build: {install}. "
             "You also need the Intel compute runtime and Level Zero loader from your "
             "distro, and your user in the 'render' group."
         )
     return (
-        f"Intel GPU detected ({gpu}) but this PyTorch build has no XPU support, "
-        f"so generation runs on CPU. For Arc GPUs install the XPU build: {install}. "
-        "For Iris/UHD integrated graphics see backend/requirements-directml.txt."
+        f"Intel GPU detected ({gpu}) but this PyTorch build cannot use it, "
+        f"so generation runs on CPU. Install the XPU build: {install}."
     )
 
 

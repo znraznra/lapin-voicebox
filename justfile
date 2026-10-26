@@ -106,6 +106,16 @@ setup-python:
         done
         return 1
     }
+    # True if an Intel GPU PyTorch's XPU build officially supports is present
+    # (Arc A/B series, Core Ultra "Arc Graphics", Data Center GPU Max). Iris Xe / UHD
+    # are not on that list. VOICEBOX_TRY_XPU=1 skips the check and tries anyway.
+    has_supported_intel_gpu() {
+        [ "${VOICEBOX_TRY_XPU:-}" = "1" ] && return 0
+        lspci -mm 2>/dev/null \
+            | grep -iE '"(VGA compatible controller|Display controller|3D controller)"' \
+            | grep -i intel \
+            | grep -qiE '\barc\b|battlemage|alchemist|data center gpu max|ponte vecchio'
+    }
     intel_xpu=0
     if [ "$(uname)" = "Linux" ]; then
         torch_index=""
@@ -123,11 +133,17 @@ setup-python:
             echo "Detected AMD GPU — installing ROCm PyTorch (rocm${rocm_ver})..."
             torch_index="https://download.pytorch.org/whl/rocm${rocm_ver}"
         elif has_intel_gpu; then
-            # Intel Arc / Core Ultra / Iris: native XPU build (PyTorch 2.9+, no IPEX needed).
-            # Runtime needs the distro's Intel compute runtime + Level Zero loader.
-            echo "Detected Intel GPU — installing XPU PyTorch..."
-            torch_index="https://download.pytorch.org/whl/xpu"
-            intel_xpu=1
+            if has_supported_intel_gpu; then
+                # Arc / Core Ultra: native XPU build, no IPEX needed. Runtime needs the
+                # distro's Intel compute runtime + Level Zero loader.
+                echo "Detected Intel Arc GPU — installing XPU PyTorch..."
+                torch_index="https://download.pytorch.org/whl/xpu"
+                intel_xpu=1
+            else
+                echo "Detected Intel integrated graphics (Iris Xe / UHD)."
+                echo "PyTorch's XPU build does not officially support it — using default PyTorch (CPU)."
+                echo "To try XPU anyway: VOICEBOX_TRY_XPU=1 just setup"
+            fi
         fi
         if [ -n "$torch_index" ]; then
             "{{ python }}" -m pip install torch torchaudio --index-url "$torch_index"
@@ -155,7 +171,7 @@ setup-python:
     "{{ python }}" -m pip install git+https://github.com/QwenLM/Qwen3-TTS.git
     "{{ python }}" -m pip install pyinstaller ruff pytest pytest-asyncio openai -q
     if [ "$intel_xpu" = "1" ]; then
-        if "{{ python }}" -c "import sys, torch; sys.exit(0 if torch.xpu.is_available() else 1)" 2>/dev/null; then
+        if "{{ python }}" -c "import sys, torch; (torch.ones(8, device='xpu') * 2).sum().item(); sys.exit(0)" 2>/dev/null; then
             echo "Intel XPU is available to PyTorch."
         else
             echo "WARNING: XPU PyTorch is installed but no XPU device is visible."
@@ -220,7 +236,14 @@ setup-python:
     Write-Host "Detected GPUs: $($gpus -join ', ')"; \
     $hasNvidia = ($gpus | Where-Object { $_ -match 'NVIDIA' }).Count -gt 0; \
     $hasIntelArc = ($gpus | Where-Object { $_ -match 'Arc' }).Count -gt 0; \
+    $legacyNvidia = $false; \
     if ($hasNvidia) { \
+        try { $cap = & nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>$null | Select-Object -First 1; if ($cap) { $legacyNvidia = ([double]$cap) -lt 7.0 } } catch { } \
+    }; \
+    if ($hasNvidia -and $legacyNvidia) { \
+        Write-Host "Maxwell/Pascal NVIDIA GPU detected (compute capability below 7.0) — CUDA 12.8 wheels dropped it, installing the CUDA 12.6 build..."; \
+        Invoke-Pip install 'torch==2.11.*' 'torchaudio==2.11.*' --index-url https://download.pytorch.org/whl/cu126; \
+    } elseif ($hasNvidia) { \
         Write-Host "NVIDIA GPU detected — installing PyTorch with CUDA support..."; \
         Invoke-Pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128; \
     } elseif ($hasIntelArc) { \

@@ -9,6 +9,7 @@ import logging
 import os
 import platform
 from contextlib import contextmanager
+from functools import lru_cache
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
@@ -132,6 +133,25 @@ def _detect_iris_igpu() -> bool:
     return False
 
 
+@lru_cache(maxsize=1)
+def xpu_usable() -> bool:
+    """Run one tiny op on the XPU device to prove it actually works.
+
+    torch.xpu.is_available() is True for any Intel GPU the driver exposes, but
+    GPUs outside PyTorch's supported list can fail at the first kernel launch,
+    which would crash generation. Falling back to CPU here is safer.
+    """
+    import torch
+
+    try:
+        (torch.ones(8, device="xpu") * 2).sum().item()
+        torch.xpu.synchronize()
+        return True
+    except Exception as e:
+        logger.warning("XPU device is visible but failed a test op (%s); using CPU instead", e)
+        return False
+
+
 def get_torch_device(
     *,
     allow_xpu: bool = False,
@@ -170,7 +190,7 @@ def get_torch_device(
         return "cuda"
 
     if allow_xpu:
-        if hasattr(torch, "xpu") and torch.xpu.is_available():
+        if hasattr(torch, "xpu") and torch.xpu.is_available() and xpu_usable():
             try:
                 import intel_extension_for_pytorch  # noqa: F401 -- enhances XPU perf if available
             except Exception:
@@ -234,12 +254,24 @@ def check_cuda_compatibility() -> tuple[bool, str | None]:
             # Check for both sm_XX and compute_XX (JIT-compiled) entries
             compute_tag = f"compute_{major}{minor}"
             if sm_tag not in arch_list and compute_tag not in arch_list:
+                if major < 7:
+                    # Maxwell/Pascal were dropped from the CUDA 12.8+ wheels, so
+                    # "newer" builds make this worse. CUDA 12.6 wheels (up to
+                    # PyTorch 2.14) still ship them.
+                    fix = (
+                        "Maxwell/Pascal GPUs need the CUDA 12.6 build: "
+                        "pip install 'torch==2.11.*' 'torchaudio==2.11.*' "
+                        "--index-url https://download.pytorch.org/whl/cu126"
+                    )
+                else:
+                    fix = (
+                        "Install PyTorch nightly (cu128) for newer GPU support: "
+                        "pip install torch --index-url https://download.pytorch.org/whl/nightly/cu128"
+                    )
                 return False, (
                     f"{device_name} (compute capability {capability} / {sm_tag}) "
                     f"is not supported by this PyTorch build. "
-                    f"Supported architectures: {', '.join(arch_list)}. "
-                    f"Install PyTorch nightly (cu128) for newer GPU support: "
-                    f"pip install torch --index-url https://download.pytorch.org/whl/nightly/cu128"
+                    f"Supported architectures: {', '.join(arch_list)}. " + fix
                 )
     except AttributeError:
         pass

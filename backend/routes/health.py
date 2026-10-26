@@ -68,7 +68,9 @@ async def health():
     has_xpu = False
     xpu_name = None
     # Native XPU support in PyTorch 2.4+; IPEX optional for enhanced performance
-    if hasattr(torch, "xpu") and torch.xpu.is_available():
+    from ..backends.base import xpu_usable
+
+    if hasattr(torch, "xpu") and torch.xpu.is_available() and xpu_usable():
         has_xpu = True
         try:
             import intel_extension_for_pytorch  # noqa: F401 -- enhances XPU perf if available

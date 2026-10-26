@@ -71,7 +71,10 @@ The server detects the best inference backend at startup:
 | Windows (Intel Iris/UHD, other GPUs) | PyTorch | DirectML (optional, see `requirements-directml.txt`) |
 | Any | PyTorch | CPU fallback |
 
-`just setup` picks the PyTorch build for the OS it runs on: CUDA for NVIDIA, ROCm for AMD on Linux, and the XPU build (`https://download.pytorch.org/whl/xpu`) for Intel GPUs on both Linux and Windows. On Linux, XPU also needs your distro's Intel compute runtime and Level Zero loader, and your user in the `render` group. If an Intel GPU is present but PyTorch can't use it, `/health` returns a `gpu_compatibility_warning` with the fix for that OS.
+`just setup` picks the PyTorch build for the OS it runs on: CUDA for NVIDIA, ROCm for AMD on Linux, and the XPU build (`https://download.pytorch.org/whl/xpu`) for Intel Arc / Core Ultra GPUs on both Linux and Windows. Two cases get special handling:
+
+- **Intel Iris Xe / UHD** are not on PyTorch's XPU support list, so setup keeps the default (CPU) PyTorch and says so. `VOICEBOX_TRY_XPU=1 just setup` installs the XPU build anyway (Linux); the app runs one test op on the XPU at startup and falls back to CPU if it fails.
+- **Maxwell/Pascal NVIDIA (compute capability below 7.0, e.g. Quadro P600, GTX 10xx)** were dropped from the CUDA 12.8 wheels, so on Windows setup installs the CUDA 12.6 build (`torch==2.11.*`). CUDA 12.6 wheels stop at PyTorch 2.14. On Linux, XPU also needs your distro's Intel compute runtime and Level Zero loader, and your user in the `render` group. If an Intel GPU is present but PyTorch can't use it, `/health` returns a `gpu_compatibility_warning` with the fix for that OS.
 
 Detection is handled by `utils/platform_detect.py`. Both backends implement the same `TTSBackend` protocol, so the API layer is engine-agnostic.
 
