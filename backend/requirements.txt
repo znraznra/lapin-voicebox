@@ -19,9 +19,11 @@ huggingface_hub>=0.20.0
 # >=0.1.1 for Qwen3TTSModel.generate_voice_design (the qwen_voice_design engine)
 qwen-tts>=0.1.1
 
-# DirectML support for Windows Intel iGPU / integrated GPUs (Iris, UHD, Arc)
-# Latest dev version (1.13.0 stable not yet released); use latest 0.2.x dev
-torch-directml>=0.2.0 ; platform_system == "Windows"
+# Used by Intel Iris/UHD/Arc iGPU detection on Windows (backends/base.py).
+# torch-directml itself is NOT listed here: its latest release pins
+# torch==2.4.1, which conflicts with torch>=2.5.0 above and would break
+# `pip install -r requirements.txt` on Windows. See requirements-directml.txt.
+wmi>=1.5.1 ; platform_system == "Windows"
 
 # LuxTTS (voice cloning engine)
 # piper-phonemize needs custom index (no PyPI wheels)

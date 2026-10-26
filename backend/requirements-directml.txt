@@ -1,0 +1,13 @@
+# Optional: DirectML acceleration for Windows Intel iGPU (Iris Xe / UHD / Arc).
+#
+# Not part of the default install. The latest torch-directml (0.2.5.dev240914)
+# pins torch==2.4.1 and torchvision==0.19.1, which conflicts with the
+# torch>=2.5.0 in requirements.txt. Use a separate venv, or install the
+# matching torch first:
+#
+#   pip install -r requirements-directml.txt
+#
+# On Intel Arc with PyTorch 2.9+, prefer the native XPU path (no extra package).
+torch==2.4.1
+torchvision==0.19.1
+torch-directml>=0.2.0
