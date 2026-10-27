@@ -245,12 +245,10 @@ def _get_gpu_status() -> str:
     elif backend_type == "mlx":
         return "Metal (Apple Silicon via MLX)"
 
-    # Intel XPU (Arc / Data Center) — native PyTorch 2.4+ support; IPEX optional
-    if hasattr(torch, "xpu") and torch.xpu.is_available():
-        try:
-            import intel_extension_for_pytorch  # noqa: F401 -- enhances XPU perf if available
-        except Exception:
-            pass
+    # Intel XPU (Arc / Data Center): same check device selection uses
+    from .backends.base import xpu_ready
+
+    if xpu_ready():
         try:
             xpu_name = torch.xpu.get_device_name(0)
         except Exception:

@@ -25,6 +25,8 @@ from . import TTSBackend, LANGUAGE_CODE_TO_NAME
 from .base import (
     is_model_cached,
     get_torch_device,
+    empty_device_cache,
+    manual_seed,
     combine_voice_prompts as _combine_voice_prompts,
     model_load_progress,
 )
@@ -127,8 +129,7 @@ class QwenCustomVoiceBackend:
             self.model = None
             self._current_model_size = None
 
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            empty_device_cache(self.device)
 
             logger.info("Qwen CustomVoice unloaded")
 
@@ -187,9 +188,7 @@ class QwenCustomVoiceBackend:
 
         def _generate_sync():
             if seed is not None:
-                torch.manual_seed(seed)
-                if torch.cuda.is_available():
-                    torch.cuda.manual_seed(seed)
+                manual_seed(seed, self.device)
 
             lang_name = LANGUAGE_CODE_TO_NAME.get(language, "auto")
 

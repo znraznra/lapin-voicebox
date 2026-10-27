@@ -25,6 +25,8 @@ import numpy as np
 from . import TTSBackend
 from .base import (
     get_torch_device,
+    empty_device_cache,
+    manual_seed,
     combine_voice_prompts as _combine_voice_prompts,
     model_load_progress,
 )
@@ -131,8 +133,8 @@ class KokoroTTSBackend:
         self.model_size = "default"
 
     def _get_device(self) -> str:
-        """Select device. Kokoro supports CUDA and CPU. MPS needs fallback env var."""
-        device = get_torch_device(allow_mps=False)
+        """Select device. Kokoro supports CUDA, XPU and CPU. MPS needs fallback env var."""
+        device = get_torch_device(allow_xpu=True, allow_mps=False)
         # Kokoro can use MPS but requires PYTORCH_ENABLE_MPS_FALLBACK=1
         # For now, skip MPS to avoid user confusion — CPU is already realtime
         return device
@@ -202,10 +204,7 @@ class KokoroTTSBackend:
             self._model = None
             self._pipelines.clear()
 
-            import torch
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            empty_device_cache(self.device)
 
             logger.info("Kokoro unloaded")
 
@@ -268,9 +267,7 @@ class KokoroTTSBackend:
             import torch
 
             if seed is not None:
-                torch.manual_seed(seed)
-                if torch.cuda.is_available():
-                    torch.cuda.manual_seed(seed)
+                manual_seed(seed, self.device)
 
             pipeline = self._get_pipeline(language)
 

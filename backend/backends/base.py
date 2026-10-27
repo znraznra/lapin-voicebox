@@ -152,6 +152,47 @@ def xpu_usable() -> bool:
         return False
 
 
+@lru_cache(maxsize=1)
+def xpu_ready() -> bool:
+    """
+    True when an Intel XPU (Arc / Data Center) is visible AND passes a test op.
+
+    Single source of truth for XPU detection (device selection, /health and the
+    startup GPU status all call this, so they can never disagree).
+
+    PyTorch 2.4+ ships native ``torch.xpu``; IPEX is then optional and only
+    imported for its performance extras. Older builds register ``torch.xpu``
+    only after ``intel_extension_for_pytorch`` is imported, so that import is
+    also the fallback when the attribute is missing.
+    """
+    import torch
+
+    def _visible() -> bool:
+        try:
+            return hasattr(torch, "xpu") and bool(torch.xpu.is_available())
+        except Exception:
+            return False
+
+    ipex_imported = False
+    if not _visible():
+        try:
+            import intel_extension_for_pytorch  # noqa: F401 -- registers torch.xpu on older builds
+
+            ipex_imported = True
+        except Exception:
+            return False
+        if not _visible():
+            return False
+
+    if not ipex_imported:
+        try:
+            import intel_extension_for_pytorch  # noqa: F401 -- enhances XPU perf if available
+        except Exception:
+            pass
+
+    return xpu_usable()
+
+
 def get_torch_device(
     *,
     allow_xpu: bool = False,
@@ -163,7 +204,7 @@ def get_torch_device(
     Detect the best available torch device.
 
     Args:
-        allow_xpu: Check for Intel XPU (IPEX) support.
+        allow_xpu: Check for Intel XPU support (native torch.xpu, IPEX optional).
         allow_directml: Check for DirectML (Windows) support.
         allow_mps: Allow MPS (Apple Silicon). If False, MPS falls back to CPU.
         force_cpu_on_mac: Force CPU on macOS regardless of GPU availability.
@@ -189,13 +230,8 @@ def get_torch_device(
     if torch.cuda.is_available():
         return "cuda"
 
-    if allow_xpu:
-        if hasattr(torch, "xpu") and torch.xpu.is_available() and xpu_usable():
-            try:
-                import intel_extension_for_pytorch  # noqa: F401 -- enhances XPU perf if available
-            except Exception:
-                pass
-            return "xpu"
+    if allow_xpu and xpu_ready():
+        return "xpu"
 
     if allow_directml:
         try:

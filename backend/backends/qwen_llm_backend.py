@@ -109,7 +109,7 @@ class PyTorchQwenLLMBackend:
             # threads to offline mode (issue #841) — the same regression
             # removed app-wide in #524/#530.
             self.tokenizer = AutoTokenizer.from_pretrained(repo)
-            dtype = torch.float16 if self.device in ("cuda", "mps") else torch.float32
+            dtype = torch.float16 if self.device in ("cuda", "xpu", "mps") else torch.float32
             self.model = AutoModelForCausalLM.from_pretrained(
                 repo,
                 dtype=dtype,
