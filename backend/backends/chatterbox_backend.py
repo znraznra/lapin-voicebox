@@ -8,7 +8,6 @@ on macOS due to known MPS tensor issues.
 
 import asyncio
 import logging
-import threading
 from pathlib import Path
 from typing import ClassVar, List, Optional, Tuple
 
@@ -23,6 +22,7 @@ from .base import (
     combine_voice_prompts as _combine_voice_prompts,
     model_load_progress,
     patch_chatterbox_f32,
+    torch_load_default_cpu,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,9 +45,6 @@ _MTL_WEIGHT_FILES = [
 
 class ChatterboxTTSBackend:
     """Chatterbox Multilingual TTS backend for voice cloning."""
-
-    # Class-level lock for torch.load monkey-patching
-    _load_lock: ClassVar[threading.Lock] = threading.Lock()
 
     def __init__(self):
         self.model = None
@@ -86,22 +83,13 @@ class ChatterboxTTSBackend:
             self._device = device
             logger.info(f"Loading Chatterbox Multilingual TTS on {device}...")
 
-            import torch
             from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 
-            if device == "cpu":
-                _orig_torch_load = torch.load
-
-                def _patched_load(*args, **kwargs):
-                    kwargs.setdefault("map_location", "cpu")
-                    return _orig_torch_load(*args, **kwargs)
-
-                with ChatterboxTTSBackend._load_lock:
-                    torch.load = _patched_load
-                    try:
-                        model = ChatterboxMultilingualTTS.from_pretrained(device=device)
-                    finally:
-                        torch.load = _orig_torch_load
+            if device != "cuda":
+                # CPU, XPU, DirectML: checkpoints were saved on CUDA, so load
+                # them to CPU and let chatterbox move them to `device`.
+                with torch_load_default_cpu():
+                    model = ChatterboxMultilingualTTS.from_pretrained(device=device)
             else:
                 model = ChatterboxMultilingualTTS.from_pretrained(device=device)
 

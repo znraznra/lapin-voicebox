@@ -8,6 +8,7 @@ voice prompt combination, and model loading progress tracking.
 import logging
 import os
 import platform
+import threading
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -150,6 +151,41 @@ def xpu_usable() -> bool:
     except Exception as e:
         logger.warning("XPU device is visible but failed a test op (%s); using CPU instead", e)
         return False
+
+
+_TORCH_LOAD_PATCH_LOCK = threading.Lock()
+
+
+@contextmanager
+def torch_load_default_cpu():
+    """
+    Make ``torch.load`` map checkpoints to CPU whenever the caller passes no
+    ``map_location`` (or ``map_location=None``).
+
+    Some libraries (chatterbox) only remap to CPU for ``cpu``/``mps`` and pass
+    ``map_location=None`` for every other device. Checkpoints saved on CUDA then
+    try to restore onto CUDA and fail on XPU/DirectML machines with
+    "Attempting to deserialize object on a CUDA device". Loading to CPU and
+    letting the library's own ``.to(device)`` move the weights fixes that.
+
+    ``setdefault`` is not enough here: the key is present with value None.
+    One shared lock serializes the monkey-patch across every backend.
+    """
+    import torch
+
+    with _TORCH_LOAD_PATCH_LOCK:
+        orig = torch.load
+
+        def _load(*args, **kwargs):
+            if len(args) < 2 and kwargs.get("map_location") is None:
+                kwargs["map_location"] = "cpu"
+            return orig(*args, **kwargs)
+
+        torch.load = _load
+        try:
+            yield
+        finally:
+            torch.load = orig
 
 
 @lru_cache(maxsize=1)
