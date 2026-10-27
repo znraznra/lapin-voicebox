@@ -350,6 +350,42 @@ dev-web: _ensure-venv
     Write-Host "Starting web app..."; \
     try { Set-Location "{{ web_dir }}"; bun run dev } finally { if ($backendJob) { taskkill /PID $backendJob.Id /T /F 2>$null | Out-Null } }
 
+# Backend + web app reachable from other devices on your LAN (open ports 17493 and 5173 to your LAN first)
+[unix]
+dev-lan: _ensure-venv
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Override with: LAN_IP=192.168.1.50 just dev-lan
+    lan_ip="${LAN_IP:-$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit }}')}"
+    if [ -z "$lan_ip" ]; then
+        echo "Could not detect your LAN IP. Run: LAN_IP=<your-ip> just dev-lan" >&2
+        exit 1
+    fi
+
+    echo "Open from another device: http://$lan_ip:5173"
+
+    backend_pid=""
+    if curl -sf http://127.0.0.1:17493/health > /dev/null 2>&1; then
+        if curl -sf --max-time 3 "http://$lan_ip:17493/health" > /dev/null 2>&1; then
+            echo "Backend already running and reachable on http://$lan_ip:17493"
+        else
+            echo "A backend is already running on :17493 but only on localhost." >&2
+            echo "Run 'just kill', then 'just dev-lan' again." >&2
+            exit 1
+        fi
+    else
+        echo "Starting backend on http://$lan_ip:17493 ..."
+        VOICEBOX_CORS_ORIGINS="http://$lan_ip:5173" \
+            {{ venv_bin }}/uvicorn backend.main:app --reload --host 0.0.0.0 --port 17493 &
+        backend_pid=$!
+        sleep 2
+    fi
+
+    trap '[ -n "$backend_pid" ] && kill "$backend_pid" 2>/dev/null; wait' EXIT
+
+    cd {{ web_dir }} && bun run dev --host
+
 # Kill all dev processes
 [unix]
 kill:

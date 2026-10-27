@@ -30,7 +30,11 @@ function invalidateAllServerData() {
 export function getDefaultServerUrl(): string {
   const fallback = 'http://127.0.0.1:17493';
 
-  if (!import.meta.env.PROD || typeof window === 'undefined') {
+  if (!import.meta.env.PROD) {
+    return getDevServerUrl(fallback);
+  }
+
+  if (typeof window === 'undefined') {
     return fallback;
   }
 
@@ -44,6 +48,31 @@ export function getDefaultServerUrl(): string {
   }
 
   return fallback;
+}
+
+/**
+ * Dev-only: the Vite page and the API run on different ports of the same
+ * machine. When the page is opened from another device by LAN address,
+ * "127.0.0.1" would point at that device itself, so reuse the page's hostname.
+ */
+function getDevServerUrl(fallback: string): string {
+  if (typeof window === 'undefined') {
+    return fallback;
+  }
+
+  const { protocol, hostname } = window.location;
+  const isWebPage = protocol === 'http:' || protocol === 'https:';
+  const isLoopbackHost =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]' ||
+    hostname === '::1';
+
+  if (!isWebPage || !hostname || isLoopbackHost || hostname === 'tauri.localhost') {
+    return fallback;
+  }
+
+  return `${protocol}//${hostname}:17493`;
 }
 
 export function isLoopbackVoiceboxServerUrl(url: string): boolean {
