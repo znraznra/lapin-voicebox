@@ -291,6 +291,7 @@ async def _create_speech(request: Request, db: Session) -> Response:
         ensure_model_cached_or_raise,
         get_tts_backend_for_engine,
         load_engine_model,
+        release_engine,
     )
     from ..mcp_server.resolve import resolve_profile
     from ..services import profiles
@@ -357,7 +358,11 @@ async def _create_speech(request: Request, db: Session) -> Response:
     await load_engine_model(engine, model_size or "default")
     tts_model = get_tts_backend_for_engine(engine)
 
-    voice_prompt = await profiles.create_voice_prompt_for_profile(str(profile.id), db, engine=engine)
+    try:
+        voice_prompt = await profiles.create_voice_prompt_for_profile(str(profile.id), db, engine=engine)
+    except BaseException:
+        release_engine(engine)
+        raise
 
     trim_fn = None
     runaway_detector = None
@@ -383,6 +388,7 @@ async def _create_speech(request: Request, db: Session) -> Response:
         )
     finally:
         release_generation_memory(tts_model)
+        release_engine(engine)
 
     if profile.effects_chain:
         import json

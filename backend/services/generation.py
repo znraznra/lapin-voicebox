@@ -70,6 +70,7 @@ async def run_generation(
         engine_retries_runaway,
         get_tts_backend_for_engine,
         load_engine_model,
+        release_engine,
     )
     from ..utils.chunked_tts import generate_chunked
     from ..utils.audio import has_tts_runaway, normalize_audio, save_audio, trim_tts_output
@@ -77,6 +78,7 @@ async def run_generation(
     task_manager = get_task_manager()
     bg_db = next(get_db())
     tts_model = None
+    engine_leased = False
 
     try:
         tts_model = get_tts_backend_for_engine(engine)
@@ -85,6 +87,7 @@ async def run_generation(
             await history.update_generation_status(generation_id, "loading_model", bg_db)
 
         await load_engine_model(engine, model_size)
+        engine_leased = True
 
         voice_prompt = await profiles.create_voice_prompt_for_profile(
             profile_id,
@@ -175,6 +178,8 @@ async def run_generation(
         task_manager.complete_generation(generation_id)
         bg_db.close()
         release_generation_memory(tts_model)
+        if engine_leased:
+            release_engine(engine)
 
 
 def _notify_speak_end(generation_id: str, *, status: str) -> None:
@@ -298,6 +303,7 @@ async def generate_audio_sync(
         engine_retries_runaway,
         get_tts_backend_for_engine,
         load_engine_model,
+        release_engine,
     )
     from ..utils.chunked_tts import generate_chunked
     from ..utils.audio import has_tts_runaway, normalize_audio, trim_tts_output
@@ -305,9 +311,11 @@ async def generate_audio_sync(
 
     bg_db = next(get_db())
     tts_model = None
+    engine_leased = False
     try:
         tts_model = get_tts_backend_for_engine(engine)
         await load_engine_model(engine, model_size)
+        engine_leased = True
 
         voice_prompt = await profiles.create_voice_prompt_for_profile(
             profile_id,
@@ -315,6 +323,10 @@ async def generate_audio_sync(
             use_cache=True,
             engine=engine,
         )
+    except BaseException:
+        if engine_leased:
+            release_engine(engine)
+        raise
     finally:
         bg_db.close()
 
@@ -344,6 +356,7 @@ async def generate_audio_sync(
         return tts.audio_to_wav_bytes(audio, sample_rate)
     finally:
         release_generation_memory(tts_model)
+        release_engine(engine)
 
 
 def _save_regenerate(

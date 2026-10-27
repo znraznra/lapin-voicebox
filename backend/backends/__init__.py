@@ -12,6 +12,8 @@ and a model config registry that eliminates per-engine dispatch maps.
 # HF_HUB_OFFLINE=1 and on network failures.
 from ..utils import hf_offline_patch  # noqa: F401
 
+import logging
+import os
 import threading
 from dataclasses import dataclass, field
 from typing import Protocol, Optional, Tuple, List
@@ -630,15 +632,83 @@ def engine_has_model_sizes(engine: str) -> bool:
     return len(configs) > 1
 
 
-async def load_engine_model(engine: str, model_size: str = "default") -> None:
-    """Load a model for the given engine, handling engines with multiple model sizes."""
-    backend = get_tts_backend_for_engine(engine)
-    if engine in ("qwen", "qwen_custom_voice"):
-        await backend.load_model_async(model_size)
-    elif engine == "tada":
-        await backend.load_model(model_size)
+logger = logging.getLogger(__name__)
+
+# Set to "1" to keep every TTS model resident after switching engines (for
+# GPUs with plenty of VRAM). By default switching to an engine that is not
+# loaded yet unloads the other engines first, so two large models never have to
+# fit on the device at once.
+KEEP_MODELS_LOADED_ENV_VAR = "VOICEBOX_KEEP_MODELS_LOADED"
+
+# Engines with a request between load_engine_model() and release_engine().
+# Only touched from the event loop, so plain dict operations are safe.
+_engine_leases: dict[str, int] = {}
+
+
+def keep_models_loaded() -> bool:
+    return os.environ.get(KEEP_MODELS_LOADED_ENV_VAR, "").strip() == "1"
+
+
+def release_engine(engine: str) -> None:
+    """Give back the lease taken by a successful load_engine_model() call."""
+    count = _engine_leases.get(engine, 0)
+    if count <= 1:
+        _engine_leases.pop(engine, None)
     else:
-        await backend.load_model()
+        _engine_leases[engine] = count - 1
+
+
+def _evict_other_engines(keep: str) -> list[str]:
+    """Unload every loaded TTS engine except ``keep`` and engines in use.
+
+    An engine counts as in use from the moment a request starts loading it
+    until that request calls release_engine(), so a switch never pulls a model
+    out from under a generation running outside the serial queue (the stream
+    and OpenAI-compatible endpoints).
+    """
+    from ..utils.cache import clear_voice_prompt_memory_cache
+
+    evicted: list[str] = []
+    for name, other in list(_tts_backends.items()):
+        if name == keep or _engine_leases.get(name):
+            continue
+        try:
+            if other.is_loaded():
+                other.unload_model()
+                evicted.append(name)
+        except Exception:
+            logger.warning("Could not unload TTS engine %s before switching", name, exc_info=True)
+
+    if evicted:
+        # Cached prompts were produced by the models just unloaded.
+        clear_voice_prompt_memory_cache()
+    return evicted
+
+
+async def load_engine_model(engine: str, model_size: str = "default") -> None:
+    """Load a model for the given engine, handling engines with multiple model sizes.
+
+    On success the engine stays marked as in use; the caller must call
+    release_engine(engine) when it is done generating. On failure the mark is
+    dropped here.
+    """
+    backend = get_tts_backend_for_engine(engine)
+    _engine_leases[engine] = _engine_leases.get(engine, 0) + 1
+    try:
+        if not backend.is_loaded() and not keep_models_loaded():
+            evicted = _evict_other_engines(engine)
+            if evicted:
+                logger.info("Unloaded %s to make room for %s", ", ".join(evicted), engine)
+
+        if engine in ("qwen", "qwen_custom_voice"):
+            await backend.load_model_async(model_size)
+        elif engine == "tada":
+            await backend.load_model(model_size)
+        else:
+            await backend.load_model()
+    except BaseException:
+        release_engine(engine)
+        raise
 
 
 async def ensure_model_cached_or_raise(engine: str, model_size: str = "default") -> None:

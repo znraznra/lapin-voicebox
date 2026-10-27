@@ -327,6 +327,7 @@ async def stream_speech(
         ensure_model_cached_or_raise,
         get_tts_backend_for_engine,
         load_engine_model,
+        release_engine,
     )
 
     profile = await profiles.get_profile(data.profile_id, db)
@@ -344,11 +345,15 @@ async def stream_speech(
     await ensure_model_cached_or_raise(engine, model_size)
     await load_engine_model(engine, model_size)
 
-    voice_prompt = await profiles.create_voice_prompt_for_profile(
-        data.profile_id,
-        db,
-        engine=engine,
-    )
+    try:
+        voice_prompt = await profiles.create_voice_prompt_for_profile(
+            data.profile_id,
+            db,
+            engine=engine,
+        )
+    except BaseException:
+        release_engine(engine)
+        raise
 
     from ..utils.chunked_tts import generate_chunked
 
@@ -378,6 +383,7 @@ async def stream_speech(
         )
     finally:
         release_generation_memory(tts_model)
+        release_engine(engine)
 
     effects_chain_config = None
     if data.effects_chain is not None:
