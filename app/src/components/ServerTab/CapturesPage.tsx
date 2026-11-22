@@ -390,6 +390,12 @@ export function CapturesPage() {
                 <SelectItem value="turbo">
                   {t('settings.captures.transcription.model.turbo', { tail: t('settings.captures.transcription.model.tail.nearBest') })}
                 </SelectItem>
+                <SelectItem value="3.5-0.8B">
+                  {t('settings.captures.refinement.model.size35s', { tail: t('settings.captures.refinement.model.tail.veryFast') })}
+                </SelectItem>
+                <SelectItem value="3.5-2B">
+                  {t('settings.captures.refinement.model.size35m', { tail: t('settings.captures.refinement.model.tail.fast') })}
+                </SelectItem>
                 <SelectItem value="3.5-4B">
                   {t('settings.captures.refinement.model.size35', { tail: t('settings.captures.refinement.model.tail.fullQuality') })}
                 </SelectItem>

@@ -984,6 +984,8 @@
           "size06": "Qwen3 · 0.6B · 400 MB · {{tail}}",
           "size17": "Qwen3 · 1.7B · 1.1 GB · {{tail}}",
           "size40": "Qwen3 · 4B · 2.5 GB · {{tail}}",
+          "size35s": "Qwen3.5 · 0.8B · 1.8 GB · {{tail}}",
+          "size35m": "Qwen3.5 · 2B · 4.6 GB · {{tail}}",
           "size35": "Qwen3.5 · 4B · 9.3 GB · {{tail}}",
           "tail": {
             "veryFast": "Muy rápido",

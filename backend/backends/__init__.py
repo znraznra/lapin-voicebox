@@ -582,17 +582,19 @@ def _get_qwen_llm_configs() -> list[ModelConfig]:
         ),
     ]
     if backend_type != "mlx":
-        configs.append(
-            ModelConfig(
-                model_name="qwen3.5-4b",
-                display_name="Qwen3.5 4B",
-                engine="qwen_llm",
-                hf_repo_id="Qwen/Qwen3.5-4B",
-                model_size="3.5-4B",
-                size_mb=9340,
-                languages=common_languages,
+        # Sizes are estimates (the model cards don't state them).
+        for size, label, mb in (("0.8B", "0.8B", 1800), ("2B", "2B", 4600), ("4B", "4B", 9340)):
+            configs.append(
+                ModelConfig(
+                    model_name=f"qwen3.5-{size.lower()}",
+                    display_name=f"Qwen3.5 {label}",
+                    engine="qwen_llm",
+                    hf_repo_id=f"Qwen/Qwen3.5-{size}",
+                    model_size=f"3.5-{size}",
+                    size_mb=mb,
+                    languages=common_languages,
+                )
             )
-        )
     return configs
 
 

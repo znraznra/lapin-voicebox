@@ -141,7 +141,7 @@ export interface HistoryListResponse {
 
 export type WhisperModelSize = 'base' | 'small' | 'medium' | 'large' | 'turbo';
 
-export type Qwen3ModelSize = '0.6B' | '1.7B' | '4B' | '3.5-4B';
+export type Qwen3ModelSize = '0.6B' | '1.7B' | '4B' | '3.5-0.8B' | '3.5-2B' | '3.5-4B';
 
 export type CaptureSource = 'dictation' | 'recording' | 'file';
 

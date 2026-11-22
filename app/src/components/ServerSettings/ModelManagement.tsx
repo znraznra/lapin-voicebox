@@ -95,6 +95,10 @@ const MODEL_DESCRIPTIONS: Record<string, string> = {
     'Qwen3 4B — highest quality local refinement and longer-form reasoning. ~2.5 GB quantized on Apple Silicon, ~8 GB at full precision on PyTorch.',
   voxcpm2:
     'VoxCPM2 by OpenBMB. 2B-parameter multilingual TTS (30 languages, Apache-2.0) with zero-shot voice cloning and free-form style prompts, 48 kHz output. Language is detected from the text. ~4.8 GB; about 8 GB of VRAM recommended.',
+  'qwen3.5-0.8b':
+    'Qwen3.5 0.8B — lightest Qwen3.5 (Apache-2.0), ~1.8 GB. PyTorch only. Loading needs transformers 5 or newer; the download works either way.',
+  'qwen3.5-2b':
+    'Qwen3.5 2B — balanced newer Qwen (Apache-2.0), ~4.6 GB. PyTorch only. Loading needs transformers 5 or newer; the download works either way.',
   'qwen3.5-4b':
     'Qwen3.5 4B — newer multimodal Qwen (Apache-2.0), ~9.3 GB. PyTorch only. Loading needs transformers 5 or newer; the download works either way.',
 };

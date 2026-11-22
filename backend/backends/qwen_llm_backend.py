@@ -30,6 +30,8 @@ PYTORCH_HF_REPOS = {
     "4B": "Qwen/Qwen3-4B",
     # Qwen3.5 needs transformers>=5 to load (see _require_qwen3_5_support).
     # No MLX repo is registered for it.
+    "3.5-0.8B": "Qwen/Qwen3.5-0.8B",
+    "3.5-2B": "Qwen/Qwen3.5-2B",
     "3.5-4B": "Qwen/Qwen3.5-4B",
 }
 
