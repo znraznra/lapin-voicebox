@@ -120,7 +120,6 @@ def build_server(cuda=False, rocm=False):
             "backend.backends.pytorch_backend",
             "--hidden-import",
             "backend.backends.qwen_custom_voice_backend",
-            "backend.backends.qwen_emirati_backend",
             "--hidden-import",
             "backend.backends.qwen_voice_design_backend",
             "--hidden-import",
@@ -312,6 +311,14 @@ def build_server(cuda=False, rocm=False):
             # omnivoice.utils.audio.
             "--hidden-import",
             "pydub",
+            # VoxCPM2 — installed --no-deps. transformers/torch introspect source
+            # files at runtime, so collect-all rather than hidden-import.
+            "--hidden-import",
+            "backend.backends.voxcpm2_backend",
+            "--collect-all",
+            "voxcpm",
+            "--hidden-import",
+            "einops",
             # Kokoro 82M — lightweight TTS engine using misaki G2P
             # collect-all is required because transformers introspects .py source
             # files at runtime (e.g. _can_set_attn_implementation opens the class

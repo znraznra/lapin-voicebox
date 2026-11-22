@@ -104,21 +104,6 @@ async def list_preset_voices(engine: str):
                 for speaker_id, display_name, gender, lang, _desc in QWEN_CUSTOM_VOICES
             ],
         }
-    if engine == "qwen_emirati":
-        from ..backends.qwen_emirati_backend import QWEN_EMIRATI_VOICES
-
-        return {
-            "engine": engine,
-            "voices": [
-                {
-                    "voice_id": speaker_id,
-                    "name": display_name,
-                    "gender": gender,
-                    "language": lang,
-                }
-                for speaker_id, display_name, gender, lang, _desc in QWEN_EMIRATI_VOICES
-            ],
-        }
     return {"engine": engine, "voices": []}
 
 @router.get("/profiles/{profile_id}", response_model=models.VoiceProfileResponse)

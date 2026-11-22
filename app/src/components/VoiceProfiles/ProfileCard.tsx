@@ -23,7 +23,6 @@ const ENGINE_DISPLAY_NAMES: Record<string, string> = {
   kokoro: 'Kokoro',
   qwen_custom_voice: 'CustomVoice',
   qwen_voice_design: 'VoiceDesign',
-  qwen_emirati: 'Emirati',
 };
 
 interface ProfileCardProps {

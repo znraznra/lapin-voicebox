@@ -86,6 +86,7 @@ jobs:
           pip install --no-deps chatterbox-tts
           pip install --no-deps hume-tada
           pip install --no-deps omnivoice
+          pip install --no-deps voxcpm
 
       - name: Install MLX dependencies (Apple Silicon only)
         if: matrix.backend == 'mlx'
@@ -295,6 +296,7 @@ jobs:
           pip install --no-deps chatterbox-tts
           pip install --no-deps hume-tada
           pip install --no-deps omnivoice
+          pip install --no-deps voxcpm
 
       - name: Install PyTorch with CUDA 12.8
         run: |
@@ -458,6 +460,7 @@ jobs:
           pip install --no-deps chatterbox-tts
           pip install --no-deps hume-tada
           pip install --no-deps omnivoice
+          pip install --no-deps voxcpm
 
       - name: Build ROCm server binary (onedir)
         shell: bash

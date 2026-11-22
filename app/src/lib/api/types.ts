@@ -44,7 +44,7 @@ export interface PersonalityTextResponse {
 export interface PresetVoice {
   voice_id: string;
   name: string;
-  gender: 'male' | 'female' | 'unspecified';
+  gender: 'male' | 'female';
   language: string;
 }
 
@@ -81,7 +81,7 @@ export interface GenerationRequest {
     | 'tada'
     | 'kokoro'
     | 'omnivoice'
-    | 'qwen_emirati';
+    | 'voxcpm2';
   instruct?: string;
   /** When true and the profile has a personality prompt, input text is rewritten in-character before TTS. */
   personality?: boolean;

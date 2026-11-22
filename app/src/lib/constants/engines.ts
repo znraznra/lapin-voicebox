@@ -15,6 +15,7 @@ export const INSTRUCT_ENGINES: ReadonlySet<string> = new Set([
   'qwen_custom_voice',
   'qwen_voice_design',
   'omnivoice',
+  'voxcpm2',
 ]);
 
 /** Whether the given engine should show and forward the instruct field. */

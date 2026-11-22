@@ -30,7 +30,7 @@ const generationSchema = z.object({
       'tada',
       'kokoro',
       'omnivoice',
-      'qwen_emirati',
+      'voxcpm2',
     ])
     .optional(),
   personality: z.boolean().optional(),
@@ -108,8 +108,8 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                     ? 'qwen-voice-design-1.7B'
                     : engine === 'omnivoice'
                       ? 'omnivoice'
-                      : engine === 'qwen_emirati'
-                        ? 'qwen-emirati'
+                      : engine === 'voxcpm2'
+                        ? 'voxcpm2'
                       : engine === 'qwen_custom_voice'
                         ? `qwen-custom-voice-${data.modelSize}`
                         : `qwen-tts-${data.modelSize}`;
@@ -130,8 +130,8 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
                     ? 'Qwen VoiceDesign 1.7B'
                     : engine === 'omnivoice'
                       ? 'OmniVoice'
-                      : engine === 'qwen_emirati'
-                        ? 'Qwen Emirati'
+                      : engine === 'voxcpm2'
+                        ? 'VoxCPM2'
                       : engine === 'qwen_custom_voice'
                         ? data.modelSize === '1.7B'
                           ? 'Qwen CustomVoice 1.7B'

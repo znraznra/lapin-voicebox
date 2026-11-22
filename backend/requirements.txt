@@ -61,6 +61,13 @@ torchaudio
 # tensorboardX and webdataset are demo/training-only and deliberately skipped.
 pydub
 
+# VoxCPM2 sub-dependencies (voxcpm itself is installed --no-deps in the setup
+# script: it pins gradio<7, funasr, modelscope and datasets<4, none of which
+# inference needs). The only runtime import not already listed in this file
+# is einops; torch, torchaudio, transformers, pydantic, tqdm, librosa,
+# soundfile and safetensors all come from elsewhere.
+einops
+
 # Kokoro TTS (lightweight 82M-param engine)
 kokoro>=0.9.4
 misaki[en,ja,zh]>=0.9.4

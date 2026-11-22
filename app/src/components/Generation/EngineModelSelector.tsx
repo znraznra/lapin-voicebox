@@ -29,7 +29,7 @@ const ENGINE_OPTIONS = [
   { value: 'tada:3B', label: 'TADA 3B Multilingual', engine: 'tada' },
   { value: 'kokoro', label: 'Kokoro 82M', engine: 'kokoro' },
   { value: 'omnivoice', label: 'OmniVoice (non-commercial)', engine: 'omnivoice' },
-  { value: 'qwen_emirati', label: 'Qwen Emirati (Arabic)', engine: 'qwen_emirati' },
+  { value: 'voxcpm2', label: 'VoxCPM2', engine: 'voxcpm2' },
 ] as const;
 
 const ENGINE_DESCRIPTIONS: Record<string, string> = {
@@ -41,7 +41,7 @@ const ENGINE_DESCRIPTIONS: Record<string, string> = {
   chatterbox_turbo: 'English, [laugh] [cough] tags',
   tada: 'HumeAI, 700s+ coherent audio',
   kokoro: '82M params, CPU realtime, 8 langs',
-  qwen_emirati: 'Emirati Arabic, one fixed voice',
+  voxcpm2: '30 languages, 48 kHz, cloning + style prompts',
   omnivoice: '23 languages, voice design. CC-BY-NC weights: non-commercial use only',
 };
 
@@ -56,6 +56,7 @@ const CLONING_ENGINES = new Set([
   'chatterbox_turbo',
   'tada',
   'omnivoice',
+  'voxcpm2',
 ]);
 
 /** Engines that synthesise a voice from a written description. */
