@@ -8,7 +8,12 @@ and STT engines.
 """
 
 import asyncio
+import json
 import logging
+import subprocess
+import sys
+import threading
+from pathlib import Path
 from typing import Optional
 
 from . import LLMBackend, DEFAULT_LLM_MAX_TOKENS, DEFAULT_LLM_TEMPERATURE, llm_progress_name as progress_name
@@ -28,7 +33,8 @@ PYTORCH_HF_REPOS = {
     "0.6B": "Qwen/Qwen3-0.6B",
     "1.7B": "Qwen/Qwen3-1.7B",
     "4B": "Qwen/Qwen3-4B",
-    # Qwen3.5 needs transformers>=5 to load (see _require_qwen3_5_support).
+    # Qwen3.5 needs transformers>=5, so it runs in a worker process with a
+    # private transformers 5 install (see _load_qwen35_worker).
     # No MLX repo is registered for it.
     "3.5-0.8B": "Qwen/Qwen3.5-0.8B",
     "3.5-2B": "Qwen/Qwen3.5-2B",
@@ -44,25 +50,6 @@ MLX_HF_REPOS = {
 
 def _is_qwen3_5(model_size: str) -> bool:
     return model_size.startswith("3.5-")
-
-
-def _require_qwen3_5_support() -> None:
-    """Fail clearly when the installed transformers predates Qwen3.5."""
-    from importlib.util import find_spec
-
-    try:
-        supported = find_spec("transformers.models.qwen3_5") is not None
-    except (ImportError, ValueError):
-        supported = False
-    if not supported:
-        import transformers
-
-        raise RuntimeError(
-            "Qwen3.5 needs transformers>=5 to load, but transformers "
-            f"{transformers.__version__} is installed. The weights are downloaded; "
-            "upgrade with `pip install -U 'transformers>=5'` (other engines are "
-            "pinned to 4.57.x and may not work after that)."
-        )
 
 
 def _build_messages(
@@ -90,9 +77,72 @@ class PyTorchQwenLLMBackend:
         self.model_size = model_size
         self._current_model_size: Optional[str] = None
         self.device = self._get_device()
+        # Qwen3.5 only: subprocess running transformers 5 (see qwen35_worker.py).
+        self._worker: Optional[subprocess.Popen] = None
+        self._worker_lock = threading.Lock()
 
     def _get_device(self) -> str:
         return get_torch_device(allow_xpu=True, allow_directml=True, allow_mps=True)
+
+    def _load_qwen35_worker(self, repo: str) -> None:
+        """Start the transformers-5 worker and wait until the model is loaded."""
+        from ..utils.transformers5_env import ensure_installed
+
+        tf5_dir = ensure_installed()
+        worker_script = Path(__file__).with_name("qwen35_worker.py")
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                str(worker_script),
+                "--repo", repo,
+                "--device", self.device,
+                "--tf5-dir", str(tf5_dir),
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=None,  # worker logs go to the server's stderr
+            text=True,
+            encoding="utf-8",
+            bufsize=1,
+        )
+        try:
+            line = proc.stdout.readline()
+            ready = json.loads(line) if line else {"ready": False, "error": "worker exited during startup"}
+        except Exception as exc:  # noqa: BLE001
+            ready = {"ready": False, "error": str(exc)}
+        if not ready.get("ready"):
+            proc.kill()
+            proc.wait()
+            raise RuntimeError(f"Qwen3.5 worker failed to start: {ready.get('error')}")
+        self._worker = proc
+
+    def _stop_qwen35_worker(self) -> None:
+        proc, self._worker = self._worker, None
+        if proc is None:
+            return
+        try:
+            proc.stdin.close()
+            proc.wait(timeout=10)
+        except Exception:  # noqa: BLE001
+            proc.kill()
+            proc.wait()
+
+    def _generate_qwen35(self, messages: list[dict], max_tokens: int, temperature: float) -> str:
+        with self._worker_lock:
+            proc = self._worker
+            if proc is None or proc.poll() is not None:
+                raise RuntimeError("Qwen3.5 worker is not running; reload the model")
+            proc.stdin.write(
+                json.dumps({"messages": messages, "max_tokens": max_tokens, "temperature": temperature}) + "\n"
+            )
+            proc.stdin.flush()
+            line = proc.stdout.readline()
+        if not line:
+            raise RuntimeError("Qwen3.5 worker exited during generation")
+        reply = json.loads(line)
+        if not reply.get("ok"):
+            raise RuntimeError(f"Qwen3.5 generation failed: {reply.get('error')}")
+        return reply["text"]
 
     def is_loaded(self) -> bool:
         return self.model is not None
@@ -118,40 +168,41 @@ class PyTorchQwenLLMBackend:
         await asyncio.to_thread(self._load_model_sync, model_size)
 
     def _load_model_sync(self, model_size: str) -> None:
-        import torch
-
         progress_model_name = progress_name(model_size)
         is_cached = self._is_model_cached(model_size)
         repo = self._get_model_path(model_size)
 
         with model_load_progress(progress_model_name, is_cached):
             if _is_qwen3_5(model_size):
-                # Download first so the weights are on disk even if this
-                # transformers version can't load the architecture.
+                # Download first so the weights are on disk even if the
+                # worker can't start; then load in the transformers-5 worker.
                 from huggingface_hub import snapshot_download
+                from ..utils.transformers5_env import can_install, find_installed
 
                 snapshot_download(repo)
-                _require_qwen3_5_support()
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-
-            logger.info("Loading Qwen3 %s on %s...", model_size, self.device)
-            # Loads run with the process's default HF_HUB_OFFLINE state.
-            # Forcing offline for cached models flips process-global state
-            # and silently switches every concurrent download/load on other
-            # threads to offline mode (issue #841) — the same regression
-            # removed app-wide in #524/#530.
-            self.tokenizer = AutoTokenizer.from_pretrained(repo)
-            if self.device in ("cuda", "xpu", "mps"):
-                # Qwen3.5 is trained in bf16; fp16 risks overflow.
-                dtype = torch.bfloat16 if _is_qwen3_5(model_size) and self.device != "mps" else torch.float16
+                if find_installed() is None and (reason := can_install()):
+                    raise RuntimeError(reason)
+                logger.info("Loading Qwen3.5 %s in worker on %s...", model_size, self.device)
+                self._load_qwen35_worker(repo)
+                self.model = object()  # sentinel: the real model lives in the worker
             else:
-                dtype = torch.float32
-            self.model = AutoModelForCausalLM.from_pretrained(
-                repo,
-                dtype=dtype,
-            )
-            self.model.to(self.device)
-            self.model.eval()
+                import torch
+                from transformers import AutoModelForCausalLM, AutoTokenizer
+
+                logger.info("Loading Qwen3 %s on %s...", model_size, self.device)
+                # Loads run with the process's default HF_HUB_OFFLINE state.
+                # Forcing offline for cached models flips process-global state
+                # and silently switches every concurrent download/load on other
+                # threads to offline mode (issue #841) — the same regression
+                # removed app-wide in #524/#530.
+                self.tokenizer = AutoTokenizer.from_pretrained(repo)
+                dtype = torch.float16 if self.device in ("cuda", "xpu", "mps") else torch.float32
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    repo,
+                    dtype=dtype,
+                )
+                self.model.to(self.device)
+                self.model.eval()
 
         self._current_model_size = model_size
         self.model_size = model_size
@@ -160,8 +211,7 @@ class PyTorchQwenLLMBackend:
     def unload_model(self) -> None:
         if self.model is None:
             return
-        del self.model
-        del self.tokenizer
+        self._stop_qwen35_worker()
         self.model = None
         self.tokenizer = None
         self._current_model_size = None
@@ -193,6 +243,8 @@ class PyTorchQwenLLMBackend:
         import torch
 
         messages = _build_messages(prompt, system, examples)
+        if self._worker is not None:
+            return self._generate_qwen35(messages, max_tokens, temperature)
         text = self.tokenizer.apply_chat_template(
             messages,
             tokenize=False,

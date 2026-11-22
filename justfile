@@ -160,6 +160,9 @@ setup-python:
     # VoxCPM2: its pins (gradio, funasr, modelscope, datasets<4) aren't needed
     # for inference; einops comes from requirements.txt.
     "{{ python }}" -m pip install --no-deps voxcpm
+    # Qwen3.5 LLMs need transformers 5; it gets a private copy used only by a
+    # worker process, so the pinned transformers above is untouched.
+    "{{ python }}" -m backend.utils.transformers5_env
     # Apple Silicon: install MLX backend
     if [ "$(uname -m)" = "arm64" ] && [ "$(uname)" = "Darwin" ]; then
         echo "Detected Apple Silicon — installing MLX dependencies..."
@@ -263,6 +266,7 @@ setup-python:
     Invoke-Pip install --no-deps hume-tada; \
     Invoke-Pip install --no-deps omnivoice; \
     Invoke-Pip install --no-deps voxcpm; \
+    & "{{ python }}" -m backend.utils.transformers5_env; \
     Invoke-Pip install git+https://github.com/QwenLM/Qwen3-TTS.git; \
     Invoke-Pip install pyinstaller ruff pytest pytest-asyncio openai -q; \
     Write-Host "Python environment ready."
