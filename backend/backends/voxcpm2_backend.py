@@ -55,7 +55,9 @@ DEFAULT_SAMPLE_RATE = 48000
 CFG_VALUE = 2.0
 INFERENCE_TIMESTEPS = 10
 
-_PROMPT_FORMAT_VERSION = 1
+# Bumped to 2: v1 prompts built from combined multi-sample clips were sped up
+# (combined at 16 kHz but saved as 24 kHz), so cached ones must be rebuilt.
+_PROMPT_FORMAT_VERSION = 2
 
 _xpu_patch_lock = threading.Lock()
 _xpu_patched = False
@@ -219,9 +221,11 @@ class VoxCPM2Backend:
         return prompt, False
 
     async def combine_voice_prompts(self, audio_paths, reference_texts):
-        return await _combine_voice_prompts(
-            audio_paths, reference_texts, sample_rate=REFERENCE_SAMPLE_RATE
-        )
+        # Must stay 24 kHz: services/profiles.py saves the combined clip as a
+        # 24 kHz WAV regardless of backend, so any other rate here makes the
+        # reference play back at the wrong speed and pitch. create_voice_prompt
+        # resamples to 16 kHz itself.
+        return await _combine_voice_prompts(audio_paths, reference_texts, sample_rate=24000)
 
     async def generate(
         self,

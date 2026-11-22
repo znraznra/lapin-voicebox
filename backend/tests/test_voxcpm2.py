@@ -102,3 +102,16 @@ def test_generate_with_reference_only_is_controllable_cloning():
     asyncio.run(b.generate("Hello", prompt))
     call = b.model.calls[0]
     assert "reference_wav_path" in call and "prompt_wav_path" not in call
+
+
+def test_combined_reference_matches_the_rate_the_profile_service_saves(tmp_path):
+    """services/profiles.py writes the combined clip at 24 kHz; a different
+    rate here speeds up and pitches up the cloned voice."""
+    import soundfile as sf
+
+    clip = tmp_path / "a.wav"
+    sf.write(clip, np.zeros(48000, dtype=np.float32), 48000)  # 1.0 s
+
+    audio, _text = asyncio.run(_backend().combine_voice_prompts([str(clip)], ["hi"]))
+
+    assert abs(len(audio) / 24000 - 1.0) < 0.01
