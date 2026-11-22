@@ -93,6 +93,10 @@ const MODEL_DESCRIPTIONS: Record<string, string> = {
     'Qwen3 1.7B — balanced size and quality. Handles subtle self-corrections and technical vocabulary better than the 0.6B. Runs at ~1.1 GB quantized on Apple Silicon.',
   'qwen3-4b':
     'Qwen3 4B — highest quality local refinement and longer-form reasoning. ~2.5 GB quantized on Apple Silicon, ~8 GB at full precision on PyTorch.',
+  'qwen-emirati':
+    'Qwen3.5-TTS-Emirati — Emirati Arabic single-speaker fine-tune of Qwen3-TTS 1.7B (vadimbelsky). One built-in voice, no reference audio. ~4.5 GB.',
+  'qwen3.5-4b':
+    'Qwen3.5 4B — newer multimodal Qwen (Apache-2.0), ~9.3 GB. PyTorch only. Loading needs transformers 5 or newer; the download works either way.',
 };
 
 function formatDownloads(n: number): string {

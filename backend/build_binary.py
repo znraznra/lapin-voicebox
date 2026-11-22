@@ -120,6 +120,7 @@ def build_server(cuda=False, rocm=False):
             "backend.backends.pytorch_backend",
             "--hidden-import",
             "backend.backends.qwen_custom_voice_backend",
+            "backend.backends.qwen_emirati_backend",
             "--hidden-import",
             "backend.backends.qwen_voice_design_backend",
             "--hidden-import",

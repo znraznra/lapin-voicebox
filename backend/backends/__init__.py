@@ -241,6 +241,7 @@ TTS_ENGINES = {
     "tada": "TADA",
     "kokoro": "Kokoro",
     "omnivoice": "OmniVoice",
+    "qwen_emirati": "Qwen Emirati",
 }
 
 LLM_ENGINES = {
@@ -310,6 +311,20 @@ def _get_qwen_custom_voice_configs() -> list[ModelConfig]:
             size_mb=1200,
             supports_instruct=True,
             languages=["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
+        ),
+    ]
+
+
+def _get_qwen_emirati_configs() -> list[ModelConfig]:
+    """Return the Qwen3.5-TTS-Emirati model config (single speaker, Arabic)."""
+    return [
+        ModelConfig(
+            model_name="qwen-emirati",
+            display_name="Qwen Emirati",
+            engine="qwen_emirati",
+            hf_repo_id="vadimbelsky/qwen3.5-TTS-Emirati",
+            size_mb=4520,
+            languages=["ar"],
         ),
     ]
 
@@ -536,7 +551,7 @@ def _get_qwen_llm_configs() -> list[ModelConfig]:
         "en", "zh", "ja", "ko", "de", "fr", "ru", "pt", "es", "it",
     ]
 
-    return [
+    configs = [
         ModelConfig(
             model_name="qwen3-0.6b",
             display_name="Qwen3 0.6B",
@@ -565,6 +580,28 @@ def _get_qwen_llm_configs() -> list[ModelConfig]:
             languages=common_languages,
         ),
     ]
+    if backend_type != "mlx":
+        configs.append(
+            ModelConfig(
+                model_name="qwen3.5-4b",
+                display_name="Qwen3.5 4B",
+                engine="qwen_llm",
+                hf_repo_id="Qwen/Qwen3.5-4B",
+                model_size="3.5-4B",
+                size_mb=9340,
+                languages=common_languages,
+            )
+        )
+    return configs
+
+
+def llm_progress_name(model_size: str) -> str:
+    """Model name used for download/load progress; matches ModelConfig.model_name."""
+    if model_size.startswith("3.5-"):
+        return f"qwen3.5-{model_size[4:].lower()}"
+    return f"qwen3-{model_size.lower()}"
+
+
 
 
 def get_all_model_configs() -> list[ModelConfig]:
@@ -573,6 +610,7 @@ def get_all_model_configs() -> list[ModelConfig]:
         _get_qwen_model_configs()
         + _get_qwen_custom_voice_configs()
         + _get_qwen_voice_design_configs()
+        + _get_qwen_emirati_configs()
         + _get_non_qwen_tts_configs()
         + _get_whisper_configs()
         + _get_qwen_llm_configs()
@@ -585,6 +623,7 @@ def get_tts_model_configs() -> list[ModelConfig]:
         _get_qwen_model_configs()
         + _get_qwen_custom_voice_configs()
         + _get_qwen_voice_design_configs()
+        + _get_qwen_emirati_configs()
         + _get_non_qwen_tts_configs()
     )
 
@@ -916,6 +955,10 @@ def get_tts_backend_for_engine(engine: str) -> TTSBackend:
             from .qwen_custom_voice_backend import QwenCustomVoiceBackend
 
             backend = QwenCustomVoiceBackend()
+        elif engine == "qwen_emirati":
+            from .qwen_emirati_backend import QwenEmiratiBackend
+
+            backend = QwenEmiratiBackend()
         elif engine == "qwen_voice_design":
             from .qwen_voice_design_backend import QwenVoiceDesignBackend
 

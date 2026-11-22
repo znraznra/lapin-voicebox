@@ -70,6 +70,7 @@ export const ENGINE_LANGUAGES: Record<string, readonly LanguageCode[]> = {
   tada: ['en', 'ar', 'zh', 'de', 'es', 'fr', 'it', 'ja', 'pl', 'pt'],
   kokoro: ['en', 'es', 'fr', 'hi', 'it', 'pt', 'ja', 'zh'],
   qwen_custom_voice: ['zh', 'en', 'ja', 'ko', 'de', 'fr', 'ru', 'pt', 'es', 'it'],
+  qwen_emirati: ['ar'],
   qwen_voice_design: ['zh', 'en', 'ja', 'ko', 'de', 'fr', 'ru', 'pt', 'es', 'it'],
   // OmniVoice covers 600+ languages. Listed here are the ones ALL_LANGUAGES
   // already knows -- widening that list is a separate change.

@@ -390,6 +390,9 @@ export function CapturesPage() {
                 <SelectItem value="turbo">
                   {t('settings.captures.transcription.model.turbo', { tail: t('settings.captures.transcription.model.tail.nearBest') })}
                 </SelectItem>
+                <SelectItem value="3.5-4B">
+                  {t('settings.captures.refinement.model.size35', { tail: t('settings.captures.refinement.model.tail.fullQuality') })}
+                </SelectItem>
               </SelectContent>
             </Select>
           }

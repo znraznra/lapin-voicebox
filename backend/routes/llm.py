@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from .. import models
-from ..backends import get_llm_model_configs
+from ..backends import get_llm_model_configs, llm_progress_name
 from ..services import llm
 from ..services.task_queue import create_background_task
 from ..utils.tasks import get_task_manager
@@ -45,7 +45,7 @@ async def llm_generate(request: models.LLMGenerateRequest):
 
         already_loaded = backend.is_loaded() and backend.model_size == model_size
         if not already_loaded and not backend._is_model_cached(model_size):
-            progress_model_name = f"qwen3-{model_size.lower()}"
+            progress_model_name = llm_progress_name(model_size)
             task_manager = get_task_manager()
 
             async def download_llm_background():

@@ -11,7 +11,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from . import LLMBackend, DEFAULT_LLM_MAX_TOKENS, DEFAULT_LLM_TEMPERATURE
+from . import LLMBackend, DEFAULT_LLM_MAX_TOKENS, DEFAULT_LLM_TEMPERATURE, llm_progress_name as progress_name
 from .base import (
     is_model_cached,
     get_torch_device,
@@ -28,6 +28,9 @@ PYTORCH_HF_REPOS = {
     "0.6B": "Qwen/Qwen3-0.6B",
     "1.7B": "Qwen/Qwen3-1.7B",
     "4B": "Qwen/Qwen3-4B",
+    # Qwen3.5 needs transformers>=5 to load (see _require_qwen3_5_support).
+    # No MLX repo is registered for it.
+    "3.5-4B": "Qwen/Qwen3.5-4B",
 }
 
 MLX_HF_REPOS = {
@@ -37,8 +40,27 @@ MLX_HF_REPOS = {
 }
 
 
-def _progress_name(model_size: str) -> str:
-    return f"qwen3-{model_size.lower()}"
+def _is_qwen3_5(model_size: str) -> bool:
+    return model_size.startswith("3.5-")
+
+
+def _require_qwen3_5_support() -> None:
+    """Fail clearly when the installed transformers predates Qwen3.5."""
+    from importlib.util import find_spec
+
+    try:
+        supported = find_spec("transformers.models.qwen3_5") is not None
+    except (ImportError, ValueError):
+        supported = False
+    if not supported:
+        import transformers
+
+        raise RuntimeError(
+            "Qwen3.5 needs transformers>=5 to load, but transformers "
+            f"{transformers.__version__} is installed. The weights are downloaded; "
+            "upgrade with `pip install -U 'transformers>=5'` (other engines are "
+            "pinned to 4.57.x and may not work after that)."
+        )
 
 
 def _build_messages(
@@ -95,13 +117,21 @@ class PyTorchQwenLLMBackend:
 
     def _load_model_sync(self, model_size: str) -> None:
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        progress_model_name = _progress_name(model_size)
+        progress_model_name = progress_name(model_size)
         is_cached = self._is_model_cached(model_size)
         repo = self._get_model_path(model_size)
 
         with model_load_progress(progress_model_name, is_cached):
+            if _is_qwen3_5(model_size):
+                # Download first so the weights are on disk even if this
+                # transformers version can't load the architecture.
+                from huggingface_hub import snapshot_download
+
+                snapshot_download(repo)
+                _require_qwen3_5_support()
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+
             logger.info("Loading Qwen3 %s on %s...", model_size, self.device)
             # Loads run with the process's default HF_HUB_OFFLINE state.
             # Forcing offline for cached models flips process-global state
@@ -109,7 +139,11 @@ class PyTorchQwenLLMBackend:
             # threads to offline mode (issue #841) — the same regression
             # removed app-wide in #524/#530.
             self.tokenizer = AutoTokenizer.from_pretrained(repo)
-            dtype = torch.float16 if self.device in ("cuda", "xpu", "mps") else torch.float32
+            if self.device in ("cuda", "xpu", "mps"):
+                # Qwen3.5 is trained in bf16; fp16 risks overflow.
+                dtype = torch.bfloat16 if _is_qwen3_5(model_size) and self.device != "mps" else torch.float16
+            else:
+                dtype = torch.float32
             self.model = AutoModelForCausalLM.from_pretrained(
                 repo,
                 dtype=dtype,
@@ -233,7 +267,7 @@ class MLXQwenLLMBackend:
     def _load_model_sync(self, model_size: str) -> None:
         from mlx_lm import load as mlx_load
 
-        progress_model_name = _progress_name(model_size)
+        progress_model_name = progress_name(model_size)
         is_cached = self._is_model_cached(model_size)
         repo = self._get_model_path(model_size)
 

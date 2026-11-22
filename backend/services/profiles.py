@@ -86,6 +86,11 @@ def _get_preset_voice_ids(engine: str) -> set[str]:
 
         return {voice_id for voice_id, _name, _gender, _lang, _desc in QWEN_CUSTOM_VOICES}
 
+    if engine == "qwen_emirati":
+        from ..backends.qwen_emirati_backend import QWEN_EMIRATI_VOICES
+
+        return {voice_id for voice_id, _name, _gender, _lang, _desc in QWEN_EMIRATI_VOICES}
+
     return set()
 
 

@@ -44,7 +44,7 @@ export interface PersonalityTextResponse {
 export interface PresetVoice {
   voice_id: string;
   name: string;
-  gender: 'male' | 'female';
+  gender: 'male' | 'female' | 'unspecified';
   language: string;
 }
 
@@ -80,7 +80,8 @@ export interface GenerationRequest {
     | 'chatterbox_turbo'
     | 'tada'
     | 'kokoro'
-    | 'omnivoice';
+    | 'omnivoice'
+    | 'qwen_emirati';
   instruct?: string;
   /** When true and the profile has a personality prompt, input text is rewritten in-character before TTS. */
   personality?: boolean;
@@ -140,7 +141,7 @@ export interface HistoryListResponse {
 
 export type WhisperModelSize = 'base' | 'small' | 'medium' | 'large' | 'turbo';
 
-export type Qwen3ModelSize = '0.6B' | '1.7B' | '4B';
+export type Qwen3ModelSize = '0.6B' | '1.7B' | '4B' | '3.5-4B';
 
 export type CaptureSource = 'dictation' | 'recording' | 'file';
 

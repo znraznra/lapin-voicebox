@@ -85,7 +85,7 @@ class GenerationRequest(BaseModel):
     seed: Optional[int] = Field(None, ge=0)
     model_size: Optional[str] = Field(default="1.7B", pattern="^(1\\.7B|0\\.6B|1B|3B)$")
     instruct: Optional[str] = Field(None, max_length=500)
-    engine: Optional[str] = Field(default=None, pattern="^(qwen|qwen_custom_voice|qwen_voice_design|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|omnivoice)$")
+    engine: Optional[str] = Field(default=None, pattern="^(qwen|qwen_custom_voice|qwen_voice_design|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|omnivoice|qwen_emirati)$")
     personality: bool = Field(
         default=False,
         description="When true and the profile has a personality prompt, the input text is rewritten in-character before TTS.",
@@ -235,7 +235,7 @@ class CaptureRefineRequest(BaseModel):
     """Request to refine a capture's transcript via the LLM."""
 
     flags: Optional[RefinementFlagsModel] = None
-    model_size: Optional[str] = Field(default=None, pattern="^(0\\.6B|1\\.7B|4B)$")
+    model_size: Optional[str] = Field(default=None, pattern="^(0\\.6B|1\\.7B|4B|3\\.5-4B)$")
 
 
 class CaptureRetranscribeRequest(BaseModel):
@@ -251,7 +251,7 @@ class CaptureSettingsResponse(BaseModel):
     stt_model: str = Field(default="turbo", pattern="^(base|small|medium|large|turbo)$")
     language: str = Field(default="auto")
     auto_refine: bool = True
-    llm_model: str = Field(default="0.6B", pattern="^(0\\.6B|1\\.7B|4B)$")
+    llm_model: str = Field(default="0.6B", pattern="^(0\\.6B|1\\.7B|4B|3\\.5-4B)$")
     smart_cleanup: bool = True
     self_correction: bool = True
     preserve_technical: bool = True
@@ -307,7 +307,7 @@ class CaptureSettingsUpdate(BaseModel):
     stt_model: Optional[str] = Field(default=None, pattern="^(base|small|medium|large|turbo)$")
     language: Optional[str] = None
     auto_refine: Optional[bool] = None
-    llm_model: Optional[str] = Field(default=None, pattern="^(0\\.6B|1\\.7B|4B)$")
+    llm_model: Optional[str] = Field(default=None, pattern="^(0\\.6B|1\\.7B|4B|3\\.5-4B)$")
     smart_cleanup: Optional[bool] = None
     self_correction: Optional[bool] = None
     preserve_technical: Optional[bool] = None
@@ -352,7 +352,7 @@ class MCPClientBindingResponse(BaseModel):
     profile_id: Optional[str] = None
     default_engine: Optional[str] = Field(
         None,
-        pattern="^(qwen|qwen_custom_voice|qwen_voice_design|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|omnivoice)$",
+        pattern="^(qwen|qwen_custom_voice|qwen_voice_design|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|omnivoice|qwen_emirati)$",
     )
     default_personality: bool = False
     last_seen_at: Optional[datetime] = None
@@ -371,7 +371,7 @@ class MCPClientBindingUpsert(BaseModel):
     profile_id: Optional[str] = None
     default_engine: Optional[str] = Field(
         None,
-        pattern="^(qwen|qwen_custom_voice|qwen_voice_design|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|omnivoice)$",
+        pattern="^(qwen|qwen_custom_voice|qwen_voice_design|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|omnivoice|qwen_emirati)$",
     )
     default_personality: bool = False
 
@@ -390,7 +390,7 @@ class SpeakRequest(BaseModel):
     )
     engine: Optional[str] = Field(
         None,
-        pattern="^(qwen|qwen_custom_voice|qwen_voice_design|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|omnivoice)$",
+        pattern="^(qwen|qwen_custom_voice|qwen_voice_design|luxtts|chatterbox|chatterbox_turbo|tada|kokoro|omnivoice|qwen_emirati)$",
     )
     personality: Optional[bool] = Field(
         None,
@@ -407,7 +407,7 @@ class LLMGenerateRequest(BaseModel):
 
     prompt: str = Field(..., min_length=1, max_length=50000)
     system: Optional[str] = Field(None, max_length=4000)
-    model_size: Optional[str] = Field(default="0.6B", pattern="^(0\\.6B|1\\.7B|4B)$")
+    model_size: Optional[str] = Field(default="0.6B", pattern="^(0\\.6B|1\\.7B|4B|3\\.5-4B)$")
     max_tokens: int = Field(default=512, ge=1, le=4096)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     # Few-shot (user, assistant) pairs prepended as real chat turns.

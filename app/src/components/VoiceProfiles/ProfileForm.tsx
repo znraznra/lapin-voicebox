@@ -63,7 +63,12 @@ import { SampleList } from './SampleList';
 const MAX_AUDIO_DURATION_SECONDS = 30;
 const MAX_DESIGN_PROMPT_LENGTH = 500;
 /** Engines that can't be a default for a sample-based (cloned) profile. */
-const PRESET_ONLY_ENGINES = new Set(['kokoro', 'qwen_custom_voice', 'qwen_voice_design']);
+const PRESET_ONLY_ENGINES = new Set([
+  'kokoro',
+  'qwen_custom_voice',
+  'qwen_voice_design',
+  'qwen_emirati',
+]);
 /** The engine a designed profile is created against. */
 const DESIGN_ENGINE = 'qwen_voice_design';
 const DEFAULT_ENGINE_OPTIONS = [
@@ -76,6 +81,7 @@ const DEFAULT_ENGINE_OPTIONS = [
   { value: 'tada', label: 'TADA' },
   { value: 'kokoro', label: 'Kokoro 82M' },
   { value: 'omnivoice', label: 'OmniVoice (non-commercial)' },
+  { value: 'qwen_emirati', label: 'Qwen Emirati' },
 ] as const;
 
 function makeProfileSchema(t: (key: string) => string) {
@@ -1000,6 +1006,7 @@ export function ProfileForm() {
                               <SelectContent>
                                 <SelectItem value="kokoro">Kokoro 82M</SelectItem>
                                 <SelectItem value="qwen_custom_voice">Qwen CustomVoice</SelectItem>
+                                <SelectItem value="qwen_emirati">Qwen Emirati</SelectItem>
                               </SelectContent>
                             </Select>
                           </FormItem>

@@ -154,7 +154,8 @@ export function FloatingGenerateBox({
     | 'kokoro'
     | 'qwen_custom_voice'
     | 'qwen_voice_design'
-    | 'omnivoice';
+    | 'omnivoice'
+    | 'qwen_emirati';
   useEffect(() => {
     if (selectedProfile?.language) {
       form.setValue('language', selectedProfile.language as LanguageCode);
@@ -172,7 +173,7 @@ export function FloatingGenerateBox({
       // Designed profiles are excluded: they always carry a design engine and
       // would be broken by a fallback to qwen.
       const currentEngine = form.getValues('engine');
-      const presetEngines = new Set(['kokoro', 'qwen_custom_voice', 'qwen_voice_design']);
+      const presetEngines = new Set(['kokoro', 'qwen_custom_voice', 'qwen_voice_design', 'qwen_emirati']);
       if (currentEngine && presetEngines.has(currentEngine)) {
         form.setValue('engine', 'qwen');
       }
